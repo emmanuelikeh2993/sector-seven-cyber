@@ -119,17 +119,19 @@ export const ActivatePage: React.FC<ActivatePageProps> = ({ onNavigate, applicat
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.url) {
-          // Redirect to live Stripe Checkout
-          window.location.href = data.url;
-          return;
-        }
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && (data.url || data.redirectUrl)) {
+        // Redirect to live Stripe Checkout or local simulation
+        window.location.href = data.url || data.redirectUrl;
+        return;
       }
 
-      const errData = await response.json().catch(() => ({}));
-      setErrorMessage(errData.error || 'Unable to initiate secure checkout session. Please try again or contact our security team.');
+      setErrorMessage(
+        data.error ||
+        data.message ||
+        'Unable to initiate secure checkout session. Please try again or contact our security team.'
+      );
       setIsProcessing(false);
     } catch (err: any) {
       console.warn('Checkout redirection exception:', err);

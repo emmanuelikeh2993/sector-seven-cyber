@@ -79,16 +79,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .eq('id', cleanAppId)
       .single();
 
-    if (appErr || !appRecord) {
-      return res.status(404).json({ error: 'Application record not found for specified ID.' });
+    let activeRecord = appRecord;
+
+    if (appErr || !activeRecord) {
+      const { companyName, email, contactName, deviceCount: bodyDev, cloudUserCount: bodyCloud } = req.body || {};
+      if (companyName && email) {
+        const dCount = Number(bodyDev) || 1;
+        const cCount = Number(bodyCloud) || 0;
+        activeRecord = {
+          id: cleanAppId,
+          company_name: companyName,
+          email: email,
+          contact_name: contactName || 'Authorized Representative',
+          device_count: dCount,
+          cloud_user_count: cCount,
+          evaluating_quantity: Math.max(dCount, cCount),
+          is_custom_quote: Math.max(dCount, cCount) > 30,
+          status: 'ACTIVATION STARTED',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        try {
+          await supabaseAdmin.from('applications').upsert([activeRecord]);
+        } catch (upsertErr) {
+          console.warn('Upsert fallback warning:', upsertErr);
+        }
+      } else {
+        return res.status(404).json({ error: 'Application record not found for specified ID.' });
+      }
     }
 
     // Check if custom quote is required (Section 9 & 10 of Master Specification)
-    const deviceCount = Number(appRecord.device_count) || 1;
-    const cloudUserCount = Number(appRecord.cloud_user_count) || 0;
+    const deviceCount = Number(activeRecord.device_count) || 1;
+    const cloudUserCount = Number(activeRecord.cloud_user_count) || 0;
     const evaluatingQty = Math.max(deviceCount, cloudUserCount);
 
-    if (evaluatingQty > 30 || appRecord.is_custom_quote) {
+    if (evaluatingQty > 30 || activeRecord.is_custom_quote) {
       return res.status(400).json({
         error:
           'Your environment requires a customized Sector Seven quote. Submit your information and our team will contact you regarding pricing.',
@@ -115,7 +141,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (!stripeKey) {
       console.error('Stripe Secret Key not configured in environment.');
-      return res.status(500).json({ error: 'Payment gateway configuration error.' });
+      return res.status(500).json({
+        error: 'Payment gateway configuration error. STRIPE_SECRET_KEY is not configured in Vercel project environment variables.',
+      });
     }
 
     let requestOrigin = origin;

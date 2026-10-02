@@ -68,12 +68,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (!stripeKey) {
     console.error('Stripe Secret Key not configured in server environment.');
-    return res.status(500).json({ error: 'Payment gateway configuration error.' });
+    return res.status(500).json({ 
+      error: 'Payment gateway configuration error. STRIPE_SECRET_KEY is not configured in Vercel project environment variables.' 
+    });
   }
 
   if (!supabaseServiceRole) {
     console.error('SUPABASE_SERVICE_ROLE_KEY not configured on server.');
-    return res.status(500).json({ error: 'Internal configuration error.' });
+    return res.status(500).json({ 
+      error: 'Internal configuration error. SUPABASE_SERVICE_ROLE_KEY is not configured in Vercel project environment variables.' 
+    });
   }
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRole);
